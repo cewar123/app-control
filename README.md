@@ -26,7 +26,7 @@ Instala todas las dependencias de React Native y Expo
 Ejecuta el servidor de desarrollo. Usa el flag -c para limpiar la caché y evitar problemas con la carga de nuevos componentes o fuentes
 
 ```bash
-    npx expo start -c
+    npx expo run:android
   ```
   
 Escanea el código QR con Expo Go para iniciar la aplicación.
