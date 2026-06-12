@@ -8,6 +8,20 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import SmsListener from 'react-native-android-sms-listener';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc } from 'firebase/firestore';
+
+// TODO: Reemplaza con tus credenciales de la consola de Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyDl0Er3GAAePfmCSu7erdgUddhB3cH1sqk",
+  authDomain: "app-control-77886.firebaseapp.com",
+  projectId: "app-control-77886",
+  storageBucket: "app-control-77886.firebasestorage.app",
+  messagingSenderId: "546194684037",
+  appId: "1:546194684037:web:4105bbe5a642756e89d1ec",
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 export default function Home() {
   const [numPorton, setNumPorton] = useState(null);
@@ -97,6 +111,17 @@ export default function Home() {
           return actualizado;
         });
 
+        // GUARDAR EN LA NUBE (Firebase Firestore)
+        try {
+          addDoc(collection(db, 'historial_portones'), {
+            ...nuevoRegistro,
+            numPorton: numPorton, // Identificador del equipo
+            timestamp: new Date() // Fecha del servidor para ordenar luego
+          });
+        } catch (error) {
+          console.error("Error guardando en la nube: ", error);
+        }
+
         Alert.alert("Mensaje del Portón 🤖", message.body);
       }
     });
@@ -148,10 +173,21 @@ export default function Home() {
 
         if (NativeModules.DirectSms) {
           NativeModules.DirectSms.sendDirectSMS(numPorton, mensajeSMS, 
-            () => {
+            async () => {
               const nuevo = { id: Date.now(), fecha: new Date().toLocaleTimeString(), accion: desc, status: 'Enviado' };
               setHistorial([nuevo, ...historial]);
               if (tipoAccion === 'GRABAR' || tipoAccion === 'BORRAR') { setNombre(''); setTelefono(''); }
+
+              // GUARDAR COMANDO EN LA NUBE
+              try {
+                await addDoc(collection(db, 'historial_portones'), {
+                  ...nuevo,
+                  numPorton: numPorton,
+                  timestamp: new Date()
+                });
+              } catch (error) {
+                console.error("Error guardando comando en la nube: ", error);
+              }
             }, 
             (err) => Alert.alert("Error Nativo", err)
           );
