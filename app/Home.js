@@ -47,16 +47,30 @@ export default function Home() {
 
   // 2. Escuchador de SMS y Permisos
   useEffect(() => {
-    const pedirPermisos = async () => {
-      if (Platform.OS === 'android') {
-        await PermissionsAndroid.requestMultiple([
+  const pedirPermisos = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
           PermissionsAndroid.PERMISSIONS.READ_SMS,
+          PermissionsAndroid.PERMISSIONS.SEND_SMS, // Añadimos SEND_SMS aquí también
         ]);
-      }
-    };
 
-    pedirPermisos();
+        if (
+          granted['android.permission.RECEIVE_SMS'] === PermissionsAndroid.RESULTS.GRANTED &&
+          granted['android.permission.SEND_SMS'] === PermissionsAndroid.RESULTS.GRANTED
+        ) {
+          console.log('Permisos de SMS concedidos');
+        } else {
+          console.log('Permisos de SMS denegados');
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+  };
+
+  pedirPermisos();
 
     if (!numPorton) return;
 
