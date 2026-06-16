@@ -7,6 +7,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { sendSMS } from '../../utils/sms';
 
 export default function Setup() {
   const [numPorton, setNumPorton] = useState('');
@@ -24,44 +25,35 @@ export default function Setup() {
       return;
     }
 
+    // 1. Armamos el comando SMS dependiendo de si el usuario quiere cambiar el PIN
+    let mensajeSMS = '';
+
+    if (nuevoPin !== '') {
+      
+      mensajeSMS = `CAMBIAR ${pinActual} ${nuevoPin}`; 
+    } else {
+      
+      mensajeSMS = `CLAVE ${pinActual}`;
+    }
+
     try {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.SEND_SMS);
+      const result = await sendSMS(numPorton, mensajeSMS);
+      
+      // 2. LÓGICA DEL NUEVO PIN:
+      // Si el usuario escribió un PIN nuevo, guardamos ese en la app.
+      // Si lo dejó vacío, guardamos el PIN actual de fábrica.
+      const pinParaGuardar = nuevoPin !== '' ? nuevoPin : pinActual;
 
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        
-        // 1. Armamos el comando SMS dependiendo de si el usuario quiere cambiar el PIN
-        let mensajeSMS = '';
-
-        if (nuevoPin !== '') {
-          
-          mensajeSMS = `CAMBIAR ${pinActual} ${nuevoPin}`; 
-        } else {
-          
-          mensajeSMS = `CLAVE ${pinActual}`;
-        }
-
-        if (NativeModules.DirectSms) {
-          NativeModules.DirectSms.sendDirectSMS(numPorton, mensajeSMS, 
-            async () => {
-              // 2. LÓGICA DEL NUEVO PIN:
-              // Si el usuario escribió un PIN nuevo, guardamos ese en la app.
-              // Si lo dejó vacío, guardamos el PIN actual de fábrica.
-              const pinParaGuardar = nuevoPin !== '' ? nuevoPin : pinActual;
-
-              await AsyncStorage.setItem('@pin_porton', pinParaGuardar);
-              await AsyncStorage.setItem('@num_porton', numPorton);
-              
-              Alert.alert("¡Equipo Vinculado!", "Se guardó la configuración correctamente.");
-              router.replace('/Home');
-            }, 
-            (err) => Alert.alert("Error de Envío", "Fallo al conectar con el portón: " + err)
-          );
-        } else {
-          Alert.alert("Error", "El módulo nativo SMS no está conectado.");
-        }
-      } else {
-        Alert.alert("Permiso Denegado", "Se necesitan permisos de SMS para vincular el equipo.");
+      await AsyncStorage.setItem('@pin_porton', pinParaGuardar);
+      await AsyncStorage.setItem('@num_porton', numPorton);
+      
+      let mensaje = "¡Equipo Vinculado! Se guardó la configuración correctamente.";
+      if (result.method === 'intent') {
+        mensaje += "\n\nSe abrió la app de SMS. Toca 'Enviar' para completar la vinculación.";
       }
+      
+      Alert.alert("¡Equipo Vinculado!", mensaje);
+      router.replace('/Home');
     } catch (err) {
       Alert.alert("Error Crítico", err.message);
     }

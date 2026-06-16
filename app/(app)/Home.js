@@ -8,22 +8,15 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import SmsListener from 'react-native-android-sms-listener';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc } from 'firebase/firestore';
-
-// TODO: Reemplaza con tus credenciales de la consola de Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyDl0Er3GAAePfmCSu7erdgUddhB3cH1sqk",
-  authDomain: "app-control-77886.firebaseapp.com",
-  projectId: "app-control-77886",
-  storageBucket: "app-control-77886.firebasestorage.app",
-  messagingSenderId: "546194684037",
-  appId: "1:546194684037:web:4105bbe5a642756e89d1ec",
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
+import { useAuth } from '../../AuthContext';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
+import { sendSMS } from '../../utils/sms';
 
 export default function Home() {
+  const { logout } = useAuth();
   const [numPorton, setNumPorton] = useState(null);
   const [pin, setPin] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -157,43 +150,51 @@ export default function Home() {
       return;
     }
 
+    let mensajeSMS = "";
+    let desc = "";
+
+    switch (tipoAccion) {
+      case 'GRABAR': mensajeSMS = `CLAVE ${pin} GRABAR ${telefono}`; desc = `Alta: ${nombre || 'Vecino'} (${telefono})`; break;
+      case 'BORRAR': mensajeSMS = `CLAVE ${pin} BORRAR ${telefono}`; desc = `Baja: ${telefono}`; break;
+      case 'ESTADO': mensajeSMS = `CLAVE ${pin}`; desc = `Consulta de estado solicitada`; break;
+      case 'HISTORIAL': mensajeSMS = `CLAVE ${pin} HISTORIAL`; desc = `Solicitud de historial`; break;
+    }
+
     try {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.SEND_SMS);
+      const result = await sendSMS(numPorton, mensajeSMS);
+      
+      const nuevo = { 
+        id: Date.now().toString(), 
+        fecha: new Date().toLocaleTimeString(), 
+        accion: desc, 
+        status: result.method === 'intent' ? 'Pendiente envío' : 'Enviado',
+        method: result.method
+      };
+      
+      setHistorial(prev => {
+        const actualizado = [nuevo, ...prev].slice(0, 20);
+        AsyncStorage.setItem('@historial_sms', JSON.stringify(actualizado));
+        return actualizado;
+      });
 
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        let mensajeSMS = "";
-        let desc = "";
+      if (tipoAccion === 'GRABAR' || tipoAccion === 'BORRAR') { 
+        setNombre(''); 
+        setTelefono(''); 
+      }
 
-        switch (tipoAccion) {
-          case 'GRABAR': mensajeSMS = `CLAVE ${pin} GRABAR ${telefono}`; desc = `Alta: ${nombre || 'Vecino'} (${telefono})`; break;
-          case 'BORRAR': mensajeSMS = `CLAVE ${pin} BORRAR ${telefono}`; desc = `Baja: ${telefono}`; break;
-          case 'ESTADO': mensajeSMS = `CLAVE ${pin}`; desc = `Consulta de estado solicitada`; break;
-          case 'HISTORIAL': mensajeSMS = `CLAVE ${pin} HISTORIAL`; desc = `Solicitud de historial`; break;
-        }
+      // GUARDAR COMANDO EN LA NUBE
+      try {
+        await addDoc(collection(db, 'historial_portones'), {
+          ...nuevo,
+          numPorton: numPorton,
+          timestamp: new Date()
+        });
+      } catch (error) {
+        console.error("Error guardando comando en la nube: ", error);
+      }
 
-        if (NativeModules.DirectSms) {
-          NativeModules.DirectSms.sendDirectSMS(numPorton, mensajeSMS, 
-            async () => {
-              const nuevo = { id: Date.now(), fecha: new Date().toLocaleTimeString(), accion: desc, status: 'Enviado' };
-              setHistorial([nuevo, ...historial]);
-              if (tipoAccion === 'GRABAR' || tipoAccion === 'BORRAR') { setNombre(''); setTelefono(''); }
-
-              // GUARDAR COMANDO EN LA NUBE
-              try {
-                await addDoc(collection(db, 'historial_portones'), {
-                  ...nuevo,
-                  numPorton: numPorton,
-                  timestamp: new Date()
-                });
-              } catch (error) {
-                console.error("Error guardando comando en la nube: ", error);
-              }
-            }, 
-            (err) => Alert.alert("Error Nativo", err)
-          );
-        }
-      } else {
-        Alert.alert("Permiso Denegado", "Se necesita acceso a SMS.");
+      if (result.method === 'intent') {
+        Alert.alert("Acción requerida", "Se abrió la app de SMS. Toca 'Enviar' para completar.");
       }
     } catch (err) {
       Alert.alert("Error Crítico", err.message);
@@ -215,8 +216,13 @@ export default function Home() {
       <StatusBar style="dark" backgroundColor="#F8F9FA" />
       
       <View style={styles.header}>
-        <Text style={styles.title}>Panel de Control</Text>
-        <Text style={styles.subtitle}>Portón vinculado: {numPorton}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Panel de Control</Text>
+          <Text style={styles.subtitle}>Portón vinculado: {numPorton}</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutBtnText}>Cerrar Sesión</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -301,9 +307,12 @@ export default function Home() {
 const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FA' },
   container: { flex: 1, backgroundColor: '#F8F9FA', paddingTop: 50, paddingHorizontal: 20 },
-  header: { marginBottom: 20, alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  headerLeft: { flex: 1 },
   title: { fontSize: 26, color: '#1A1A1A', fontFamily: 'LeagueSpartanBold' },
   subtitle: { fontSize: 14, color: '#27AE60', marginTop: 2, fontFamily: 'LeagueSpartanBold' },
+  logoutBtn: { backgroundColor: '#E74C3C', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8 },
+  logoutBtnText: { color: '#fff', fontFamily: 'LeagueSpartanBold', fontSize: 12 },
   
   form: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 15, elevation: 4 },
   label: { fontSize: 16, marginBottom: 15, color: '#333', fontFamily: 'LeagueSpartanBold' },

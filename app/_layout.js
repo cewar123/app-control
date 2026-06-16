@@ -1,14 +1,15 @@
 import React, { useEffect } from 'react';
-import { Slot } from 'expo-router';
+import { Slot, Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
+import { AuthProvider, useAuth } from '../AuthContext';
+import { redirect } from 'expo-router';
 
-// Mantiene la pantalla de carga visible mientras cargan las fuentes
 SplashScreen.preventAutoHideAsync();
 
-export default function Layout() {
+function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     'LeagueSpartan': require('../assets/fonts/LeagueSpartan.ttf'),
     'LeagueSpartanBold': require('../assets/fonts/LeagueSpartanBold.ttf'), 
@@ -16,17 +17,14 @@ export default function Layout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      // Oculta la pantalla de carga cuando las fuentes estén listas (o si hay error)
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
 
-  // Si no han cargado y no hay error, sigue esperando
   if (!fontsLoaded && !fontError) {
     return null; 
   }
 
-  // Si hay un error con la ruta de la fuente, muestra este mensaje en vez de pantalla negra
   if (fontError) {
     return (
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
@@ -36,16 +34,21 @@ export default function Layout() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <Slot />
-    </View>
+    <AuthProvider>
+      <View style={styles.container}>
+        <StatusBar style="dark" />
+        <Stack>
+          <Stack.Screen name="index" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="Home" />
+          <Stack.Screen name="AddUser" />
+          <Stack.Screen name="ManageUsers" />
+          <Stack.Screen name="Setup" />
+        </Stack>
+      </View>
+    </AuthProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-});
+export default function Layout() {
+  return <RootLayout />;
+}

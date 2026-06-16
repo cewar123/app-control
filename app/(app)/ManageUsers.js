@@ -1,8 +1,8 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from 'expo-constants';
-import Header from "../components/header";
-import SearchBar from "../components/searchBar";
-import UserCard from '../components/userCard';
+import Header from "../../components/header";
+import SearchBar from "../../components/searchBar";
+import UserCard from '../../components/userCard';
 
 const userData = {ID: "123456789", name: "JOHN DOE", phoneNumber: "987654321", address: "Puerto Ordaz, Av las americas", email: "email@example.com"}
 

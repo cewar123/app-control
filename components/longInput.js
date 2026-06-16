@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import EyeOpen from './icons/EyeOpen.jsx';
 import EyeClosed from './icons/EyeClosed.jsx';
 
-export default function LongInput({type, security, text}) {
+export default function LongInput({type, security, text, value, onChangeText}) {
     const [isPassword, setPassword] = useState(security);
     const EyeIcon = isPassword ? EyeClosed : EyeOpen;
 
@@ -14,7 +14,9 @@ export default function LongInput({type, security, text}) {
                 <TextInput
                     style={styles.inputStyle}
                     keyboardType={type}
-                    secureTextEntry={isPassword}/>
+                    secureTextEntry={isPassword}
+                    value={value}
+                    onChangeText={onChangeText}/>
 
                 {security && (
                     <Pressable

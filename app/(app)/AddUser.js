@@ -1,9 +1,9 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from 'expo-constants';
-import Header from "../components/header";
-import ShortInput from "../components/shortInput";
-import LongInput from "../components/longInput";
-import LongButton from "../components/longButton";
+import Header from "../../components/header";
+import ShortInput from "../../components/shortInput";
+import LongInput from "../../components/longInput";
+import LongButton from "../../components/longButton";
 
 
 export default function AddUser(){
